@@ -19,9 +19,9 @@ const getBattleByIdOrSlug = async (req, res) => {
     let battle;
 
     if (idOrSlug.match(/^[0-9a-fA-F]{24}$/)) {
-      battle = await Battle.findById(idOrSlug);
+      battle = await Battle.findById(idOrSlug).populate('comments.author', 'username');
     } else {
-      battle = await Battle.findOne({ slug: idOrSlug });
+      battle = await Battle.findOne({ slug: idOrSlug }).populate('comments.author', 'username');
     }
 
     if (!battle) {
@@ -41,6 +41,7 @@ const createBattle = async (req, res) => {
     const {
       name,
       title,
+      featuredImage,
       year,
       location,
       theater,
@@ -70,13 +71,14 @@ const createBattle = async (req, res) => {
       name: battleName,
       title: battleName,
       slug: generatedSlug,
+      featuredImage: featuredImage || '',
       year: String(year),
       location: location || 'Unknown Location',
       theater: theater || 'European',
       description: description || summary || '',
       coordinates: {
-        lat: Number(coordinates?.lat || 0),
-        lng: Number(coordinates?.lng || 0),
+        lat: Number(coordinates?.lat || coordinates?.[0] || 0),
+        lng: Number(coordinates?.lng || coordinates?.[1] || 0),
       },
       tacticalPhases: tacticalPhases || [],
     });
@@ -85,6 +87,55 @@ const createBattle = async (req, res) => {
     res.status(201).json(savedBattle);
   } catch (error) {
     console.error('Create Battle Error:', error);
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// @desc    Update a battle record
+// @route   PUT /api/battles/:id
+const updateBattle = async (req, res) => {
+  try {
+    const {
+      name,
+      title,
+      featuredImage,
+      year,
+      location,
+      theater,
+      description,
+      summary,
+      coordinates,
+      tacticalPhases,
+    } = req.body;
+
+    const battle = await Battle.findById(req.params.id);
+    if (!battle) {
+      return res.status(404).json({ message: 'Battle record not found' });
+    }
+
+    const battleName = name || title || battle.name;
+
+    battle.name = battleName;
+    battle.title = battleName;
+    if (featuredImage !== undefined) battle.featuredImage = featuredImage;
+    if (year) battle.year = String(year);
+    if (location) battle.location = location;
+    if (theater) battle.theater = theater;
+    if (description || summary) battle.description = description || summary;
+    if (coordinates) {
+      battle.coordinates = {
+        lat: Number(coordinates.lat ?? coordinates[0] ?? battle.coordinates?.lat ?? 0),
+        lng: Number(coordinates.lng ?? coordinates[1] ?? battle.coordinates?.lng ?? 0),
+      };
+    }
+    if (tacticalPhases) {
+      battle.tacticalPhases = tacticalPhases;
+    }
+
+    const updatedBattle = await battle.save();
+    res.status(200).json(updatedBattle);
+  } catch (error) {
+    console.error('Update Battle Error:', error);
     res.status(400).json({ message: error.message });
   }
 };
@@ -105,10 +156,123 @@ const deleteBattle = async (req, res) => {
   }
 };
 
-// Export ALL functions explicitly
+// --- BATTLE COMMENT CONTROLLERS ---
+
+// @desc    Add comment/reply to battle
+// @route   POST /api/battles/:id/comments
+const addBattleComment = async (req, res) => {
+  try {
+    const battle = await Battle.findById(req.params.id);
+    if (!battle) return res.status(404).json({ message: 'Battle not found' });
+
+    const { text, parentComment } = req.body;
+
+    const newComment = {
+      author: req.user._id,
+      text,
+      parentComment: parentComment || null,
+      likes: [],
+      createdAt: new Date(),
+    };
+
+    battle.comments.push(newComment);
+    await battle.save();
+    await battle.populate('comments.author', 'username');
+
+    const addedComment = battle.comments[battle.comments.length - 1];
+    res.status(201).json(addedComment);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// @desc    Toggle like on battle comment
+// @route   PUT /api/battles/comments/:commentId/like
+const toggleLikeBattleComment = async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const userId = req.user._id;
+
+    const battle = await Battle.findOne({ 'comments._id': commentId });
+    if (!battle) return res.status(404).json({ message: 'Comment not found' });
+
+    const comment = battle.comments.id(commentId);
+    if (!comment) return res.status(404).json({ message: 'Comment not found' });
+
+    const likeIndex = comment.likes.indexOf(userId);
+    if (likeIndex > -1) {
+      comment.likes.splice(likeIndex, 1);
+    } else {
+      comment.likes.push(userId);
+    }
+
+    await battle.save();
+    res.status(200).json(comment);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// @desc    Edit battle comment
+// @route   PUT /api/battles/comments/:commentId
+const editBattleComment = async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const { text } = req.body;
+
+    const battle = await Battle.findOne({ 'comments._id': commentId });
+    if (!battle) return res.status(404).json({ message: 'Comment not found' });
+
+    const comment = battle.comments.id(commentId);
+    if (!comment) return res.status(404).json({ message: 'Comment not found' });
+
+    if (comment.author.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Not authorized to edit this comment' });
+    }
+
+    comment.text = text;
+    await battle.save();
+    res.status(200).json(comment);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// @desc    Delete battle comment
+// @route   DELETE /api/battles/comments/:commentId
+const deleteBattleComment = async (req, res) => {
+  try {
+    const { commentId } = req.params;
+
+    const battle = await Battle.findOne({ 'comments._id': commentId });
+    if (!battle) return res.status(404).json({ message: 'Comment not found' });
+
+    const comment = battle.comments.id(commentId);
+    if (!comment) return res.status(404).json({ message: 'Comment not found' });
+
+    if (comment.author.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Not authorized to delete this comment' });
+    }
+
+    battle.comments = battle.comments.filter(
+      (c) => c._id.toString() !== commentId && c.parentComment?.toString() !== commentId
+    );
+
+    await battle.save();
+    res.status(200).json({ message: 'Comment deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 module.exports = {
   getBattles,
   getBattleByIdOrSlug,
   createBattle,
+  updateBattle, // 🌟 Exported updateBattle
   deleteBattle,
+  addBattleComment,
+  toggleLikeBattleComment,
+  editBattleComment,
+  deleteBattleComment,
 };

@@ -1,7 +1,7 @@
-// middleware/authMiddleware.js
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
+// Protect routes (Check if user is logged in)
 const protect = async (req, res, next) => {
   let token;
 
@@ -10,7 +10,7 @@ const protect = async (req, res, next) => {
       token = req.headers.authorization.split(' ')[1];
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       req.user = await User.findById(decoded.id).select('-password');
-      return next(); // <--- Correct Express signature
+      return next();
     } catch (error) {
       return res.status(401).json({ message: 'Not authorized, token failed' });
     }
@@ -21,4 +21,13 @@ const protect = async (req, res, next) => {
   }
 };
 
-module.exports = { protect }; // <--- Export object
+// Admin middleware (Check if logged-in user is an admin)
+const admin = (req, res, next) => {
+  if (req.user && req.user.isAdmin) {
+    return next();
+  } else {
+    return res.status(403).json({ message: 'Not authorized as an admin' });
+  }
+};
+
+module.exports = { protect, admin };

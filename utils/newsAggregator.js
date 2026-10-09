@@ -1,77 +1,125 @@
 const Parser = require('rss-parser');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const path = require('path');
-const dotenv = require('dotenv');
-
-// Load environment variables safely
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
-
+const cron = require('node-cron');
 const News = require('../models/News');
+const { GoogleGenAI } = require('@google/genai');
+
 const parser = new Parser();
+const ai = process.env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }) : null;
 
-// Gemini API Setup
-const apiKey = process.env.GEMINI_API_KEY;
-const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
-
-/**
- * Summarize military news using Gemini API with graceful fallback
- */
-const summarizeText = async (text) => {
-  if (!genAI || !apiKey) {
-    console.warn('⚠️ GEMINI_API_KEY missing. Using fallback excerpt.');
-    return text.slice(0, 150) + '...';
-  }
-
-  try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-    const prompt = `Summarize this military defense news into 2 concise sentences:\n\n${text}`;
-    
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    return response.text();
-  } catch (error) {
-    console.error('Gemini AI Warning:', error.message);
-    // Fallback: If Gemini hits quota or rate limit, server won't crash
-    return text.slice(0, 150) + '...';
-  }
+// Permanent & Future-Proof Helper function to generate clean, URL-safe slugs
+const generateSlug = (text) => {
+  if (!text) return '';
+  return text
+    .toString()
+    .normalize('NFD')
+    .toLowerCase()
+    .trim()
+    .replace(/['"]/g, '')           // Quotes aur apostrophes remove karein
+    .replace(/[^a-z0-9\s-]/g, '')   // Special chars, brackets, commas sab khatam
+    .replace(/\s+/g, '-')           // Spaces ko dash se replace karein
+    .replace(/-+/g, '-')            // Multiple dashes ko single karein
+    .replace(/^-+|-+$/g, '');       // Start/End ke dashes remove karein
 };
 
-/**
- * Fetch news from RSS feed and save to MongoDB
- */
+// Helper function to extract featured image from various RSS feed structures
+const extractImage = (item) => {
+  if (item.enclosure && item.enclosure.url) {
+    return item.enclosure.url;
+  }
+  if (item['media:content'] && item['media:content'].$&& item['media:content'].$.url) {
+    return item['media:content'].$.url;
+  }
+  if (item['media:thumbnail'] && item['media:thumbnail'].$&& item['media:thumbnail'].$.url) {
+    return item['media:thumbnail'].$.url;
+  }
+  
+  const contentHtml = item['content:encoded'] || item.content || item.description || '';
+  const imgMatch = contentHtml.match(/<img[^>]+src="([^">]+)"/);
+  if (imgMatch && imgMatch[1]) {
+    return imgMatch[1];
+  }
+  return '';
+};
+
+// Helper function to extract category dynamically from RSS item
+const extractCategory = (item, feedSource) => {
+  if (item.categories && item.categories.length > 0) {
+    return item.categories[0].toUpperCase();
+  }
+  if (feedSource.name === 'USNI News') return 'NAVAL & MARITIME';
+  if (feedSource.name === 'Breaking Defense') return 'DEFENSE POLICY & TECH';
+  return 'MILITARY INTELLIGENCE';
+};
+
+// Multiple Military & Defense RSS Feed Sources
+const RSS_FEEDS = [
+  { name: 'Defense News', url: 'https://www.defensenews.com/arc/outboundfeeds/rss/' },
+  { name: 'Breaking Defense', url: 'https://breakingdefense.com/feed/' },
+  { name: 'USNI News', url: 'https://news.usni.org/feed' }
+];
+
 const fetchAndSaveNews = async () => {
   try {
-    // Defense News RSS Feed URL
-    const feed = await parser.parseURL('https://www.defensenews.com/arc/outboundfeeds/rss/');
-    
-    // Process top 5 articles
-    for (const item of feed.items.slice(0, 5)) {
-      const exists = await News.findOne({ link: item.link });
-      
-      if (!exists) {
-        const summary = await summarizeText(item.contentSnippet || item.title);
+    console.log('🔄 Starting Multi-Source RSS News Fetch...');
+
+    for (const feedSource of RSS_FEEDS) {
+      try {
+        const feed = await parser.parseURL(feedSource.url);
         
-        await News.create({
-          title: item.title,
-          link: item.link,
-          summary: summary,
-          publishedAt: item.pubDate ? new Date(item.pubDate) : new Date()
-        });
-        console.log(`✅ Saved News: ${item.title}`);
+        for (const item of feed.items.slice(0, 5)) {
+          const exists = await News.findOne({ link: item.link });
+          
+          if (!exists) {
+            let aiSummary = item.contentSnippet || item.title;
+
+            if (ai) {
+              try {
+                const response = await ai.models.generateContent({
+                  model: 'gemini-2.5-flash',
+                  contents: `Summarize this military news headline and snippet into a 2-sentence concise summary: Title: ${item.title} - Snippet: ${item.contentSnippet || ''}`,
+                });
+                if (response && response.text) {
+                  aiSummary = response.text.trim();
+                }
+              } catch (aiErr) {
+                console.error('AI Summary generation failed, using snippet fallback:', aiErr.message);
+              }
+            }
+
+            const imageUrl = extractImage(item);
+            const articleSlug = generateSlug(item.title);
+            const articleCategory = extractCategory(item, feedSource);
+
+            await News.create({
+              title: item.title,
+              slug: articleSlug,
+              category: articleCategory,
+              summary: aiSummary,
+              content: item['content:encoded'] || item.content || item.description || '',
+              image: imageUrl,
+              source: feedSource.name,
+              link: item.link,
+              createdAt: item.pubDate ? new Date(item.pubDate) : new Date(),
+            });
+          }
+        }
+      } catch (feedErr) {
+        console.error(`Failed to fetch feed from ${feedSource.name}:`, feedErr.message);
       }
     }
-    console.log('✅ RSS News Aggregator execution completed.');
-  } catch (err) {
-    console.error('Error fetching RSS news:', err.message);
+    console.log('✅ RSS News sync and save completed successfully!');
+  } catch (error) {
+    console.error('Error in fetchAndSaveNews:', error.message);
+    throw error;
   }
 };
 
-/**
- * Auto Cron Job (Runs every 30 minutes)
- */
+// Cron job to run news fetch automatically (e.g., every hour)
 const startNewsCron = () => {
-  // 30 minutes interval
-  setInterval(fetchAndSaveNews, 30 * 60 * 1000);
+  cron.schedule('0 * * * *', () => {
+    console.log('⏰ Running scheduled automated news sync...');
+    fetchAndSaveNews();
+  });
 };
 
-module.exports = { startNewsCron, fetchAndSaveNews };
+module.exports = { fetchAndSaveNews, startNewsCron };

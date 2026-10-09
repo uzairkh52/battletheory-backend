@@ -22,21 +22,16 @@ app.use('/api/auth', require('./routes/authRoutes'));
 // Content Routes
 app.use('/api/battles', require('./routes/battleRoutes'));
 
-// Public News Route (app.get FIXED!)
-app.get('/api/news', async (req, res) => {
-  try {
-    const News = require('./models/News');
-    const newsList = await News.find().sort({ publishedAt: -1 }).limit(10);
-    res.json(newsList);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// News Routes
+app.use('/api/news', require('./routes/newsRoutes'));
 
 app.use('/api/categories', require('./routes/categoryRoutes'));
 app.use('/api/articles', require('./routes/articleRoutes'));
 app.use('/api/comments', require('./routes/commentRoutes'));
 
+// 🌟 Global Search Route (Added here)
+app.use('/api/search', require('./routes/searchRoutes'));
+app.use('/api/bookmarks', require('./routes/bookmarkRoutes'));
 // Start Auto News Cron Job & Initial Run
 startNewsCron();
 fetchAndSaveNews();

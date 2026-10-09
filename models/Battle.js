@@ -1,20 +1,47 @@
 const mongoose = require('mongoose');
 
+const commentSchema = new mongoose.Schema(
+  {
+    author: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    text: {
+      type: String,
+      required: true,
+    },
+    parentComment: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+    },
+    likes: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
+  },
+  { timestamps: true }
+);
+
 const battleSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
-    title: { type: String }, // Frontend compatibility ke liye
-    slug: { type: String },  // Duplicate index error se bachne ke liye
+    title: { type: String },
+    slug: { type: String },
+    featuredImage: { type: String },
     year: { type: String, required: true },
     location: { type: String, required: true },
     coordinates: {
       lat: { type: Number, default: 0 },
       lng: { type: Number, default: 0 },
     },
+    // 🌟 Theater ko String enum se hata kar Category model ka reference bana diya hai
     theater: { 
-      type: String, 
-      enum: ['Pacific', 'European', 'Eastern Front', 'North Africa', 'Other'], 
-      default: 'European' 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: 'Category', 
+      required: false 
     },
     description: { type: String, required: true },
     tacticalPhases: [
@@ -23,6 +50,7 @@ const battleSchema = new mongoose.Schema(
         details: String,
       },
     ],
+    comments: [commentSchema],
   },
   { timestamps: true }
 );

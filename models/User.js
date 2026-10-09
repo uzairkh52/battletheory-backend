@@ -6,19 +6,23 @@ const userSchema = new mongoose.Schema(
     username: {
       type: String,
       required: true,
+      trim: true,
     },
     email: {
       type: String,
       required: true,
       unique: true,
+      lowercase: true,
+      trim: true,
     },
     password: {
       type: String,
       required: true,
+      select: false, // Prevents password from being returned in queries by default
     },
     isAdmin: {
       type: Boolean,
-      default: true,
+      default: false, // Changed to false for security
     },
   },
   {
@@ -28,10 +32,11 @@ const userSchema = new mongoose.Schema(
 
 // Password verification method
 userSchema.methods.matchPassword = async function (enteredPassword) {
+  // Note: If you use select: false on password, remember to add .select('+password') when querying the user
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
-// Password hashing before save (Clean Async/Await - No 'next()' conflict)
+// Password hashing before save (Clean Async/Await)
 userSchema.pre('save', async function () {
   if (!this.isModified('password')) {
     return;

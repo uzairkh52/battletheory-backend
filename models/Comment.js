@@ -10,9 +10,8 @@ const commentSchema = new mongoose.Schema(
     author: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: false, // Guest users ke liye false rakhein
+      required: false,
     },
-    // Dynamic Reference (Article ya Battle)
     targetType: {
       type: String,
       required: true,
@@ -23,6 +22,8 @@ const commentSchema = new mongoose.Schema(
       required: true,
       refPath: 'targetType',
     },
+    likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    parentComment: { type: mongoose.Schema.Types.ObjectId, ref: 'Comment', default: null },
   },
   {
     timestamps: true,

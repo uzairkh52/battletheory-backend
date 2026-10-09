@@ -1,111 +1,47 @@
 const express = require('express');
 const router = express.Router();
-const Article = require('../models/Article');
-const { protect } = require('../middleware/authMiddleware');
+const {
+  getArticles,
+  getArticleByIdOrSlug,
+  createArticle,
+  updateArticle, // 🌟 Imported
+  deleteArticle,
+  addArticleComment,
+  toggleCommentLike,
+  replyToComment,
+  editComment,
+  deleteComment,
+} = require('../controllers/articleController');
+const { protect, admin } = require('../middleware/authMiddleware');
 
 // GET ALL ARTICLES
-router.get('/', async (req, res) => {
-  try {
-    const articles = await Article.find().populate('category', 'name slug').sort({ createdAt: -1 });
-    res.json(articles);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+router.get('/', getArticles);
 
 // GET SINGLE ARTICLE BY ID OR SLUG WITH COMMENTS
-router.get('/:identifier', async (req, res) => {
-  try {
-    const { identifier } = req.params;
-    
-    let article;
-    if (identifier.match(/^[0-9a-fA-F]{24}$/)) {
-      article = await Article.findById(identifier).populate('category', 'name slug');
-    } 
-    
-    if (!article) {
-      article = await Article.findOne({ 
-        slug: { $regex: new RegExp(`^${identifier}$`, 'i') } 
-      }).populate('category', 'name slug');
-    }
+router.get('/:identifier', getArticleByIdOrSlug);
 
-    if (!article) {
-      return res.status(404).json({ message: 'Article not found' });
-    }
+// CREATE ARTICLE (PROTECTED & ADMIN ONLY)
+router.post('/', protect, admin, createArticle);
 
-    // Article ke related comments fetch karein
-    const Comment = require('../models/Comment');
-    const comments = await Comment.find({ targetId: article._id, targetType: 'Article' })
-      .populate('author', 'username')
-      .sort({ createdAt: -1 });
+// UPDATE ARTICLE (PROTECTED & ADMIN ONLY) 🌟 Added this route
+router.put('/:id', protect, admin, updateArticle);
 
-    // Frontend rendering issue fix (c.content -> c.text fallback)
-    const formattedComments = comments.map(c => {
-      const obj = c.toObject();
-      return {
-        ...obj,
-        text: obj.content || obj.text // Frontend compatibility
-      };
-    });
+// DELETE ARTICLE (PROTECTED & ADMIN ONLY)
+router.delete('/:id', protect, admin, deleteArticle);
 
-    res.json({
-      ...article.toObject(),
-      comments: formattedComments,
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// POST COMMENT TO SPECIFIC ARTICLE (PROTECTED FOR LOGGED-IN USERS - Supports ID or Slug)
+router.post('/:identifier/comments', protect, addArticleComment);
 
-// CREATE ARTICLE (PROTECTED)
-router.post('/', protect, async (req, res) => {
-  try {
-    const article = new Article(req.body);
-    await article.save();
-    res.status(201).json(article);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
+// LIKE / UNLIKE A COMMENT (PROTECTED)
+router.post('/comments/:commentId/like', protect, toggleCommentLike);
 
-// POST COMMENT TO ARTICLE (UPDATED FOR MONGOOSE SCHEMA)
-router.post('/:id/comments', async (req, res) => {
-  try {
-    const Comment = require('../models/Comment');
-    
-    // Schema fields match: content, targetType, targetId
-    const commentData = {
-      content: req.body.text || req.body.content,
-      targetId: req.params.id,
-      targetType: 'Article',
-    };
+// REPLY TO A COMMENT (PROTECTED)
+router.post('/comments/:commentId/reply', protect, replyToComment);
 
-    // Attach author if authenticated
-    if (req.user && req.user._id) {
-      commentData.author = req.user._id;
-    }
+// EDIT A COMMENT (PROTECTED)
+router.patch('/comments/:commentId', protect, editComment);
 
-    const comment = new Comment(commentData);
-    await comment.save();
-
-    res.status(201).json(comment);
-  } catch (err) {
-    console.error('Comment Error:', err.message);
-    res.status(400).json({ error: err.message });
-  }
-});
-
-// DELETE ARTICLE BY ID (PROTECTED)
-router.delete('/:id', protect, async (req, res) => {
-  try {
-    const article = await Article.findByIdAndDelete(req.params.id);
-    if (!article) {
-      return res.status(404).json({ message: 'Article not found' });
-    }
-    res.json({ message: 'Article deleted successfully' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// DELETE A COMMENT (PROTECTED)
+router.delete('/comments/:commentId', protect, deleteComment);
 
 module.exports = router;
