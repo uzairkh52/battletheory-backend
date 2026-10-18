@@ -9,7 +9,10 @@ connectDB();
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+
+// 🌟 Yahan limit increase kar di gayi hai (50mb) taake Base64 images easily save ho sakein
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Root Test Route
 app.get('/', (req, res) => {
@@ -29,9 +32,13 @@ app.use('/api/categories', require('./routes/categoryRoutes'));
 app.use('/api/articles', require('./routes/articleRoutes'));
 app.use('/api/comments', require('./routes/commentRoutes'));
 
-// 🌟 Global Search Route (Added here)
+// 🌟 Global Search Route
 app.use('/api/search', require('./routes/searchRoutes'));
 app.use('/api/bookmarks', require('./routes/bookmarkRoutes'));
+
+// 🌟 Contact Route Added Here
+app.use('/api/contact', require('./routes/contactRoutes'));
+
 // Start Auto News Cron Job & Initial Run
 startNewsCron();
 fetchAndSaveNews();

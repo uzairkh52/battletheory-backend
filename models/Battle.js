@@ -37,10 +37,9 @@ const battleSchema = new mongoose.Schema(
       lat: { type: Number, default: 0 },
       lng: { type: Number, default: 0 },
     },
-    // 🌟 Theater ko String enum se hata kar Category model ka reference bana diya hai
+    // Theater ko String type kar diya hai taake plain text ("Pacific", "European") easily save ho sakay
     theater: { 
-      type: mongoose.Schema.Types.ObjectId, 
-      ref: 'Category', 
+      type: String, 
       required: false 
     },
     description: { type: String, required: true },

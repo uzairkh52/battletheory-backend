@@ -1,23 +1,41 @@
 const News = require('../models/News');
 const { fetchAndSaveNews } = require('../utils/newsAggregator');
 
-// Helper function to generate clean, URL-safe slugs (Timestamp removed)
 const generateSlug = (text) => {
   return text
     .toString()
     .toLowerCase()
     .trim()
-    .replace(/['"]/g, '')           // Quotes bilkul khatam kar dein
-    .replace(/[^a-z0-9 -]/g, '')    // Non-alphanumeric remove karein
-    .replace(/\s+/g, '-')           // Spaces ko - se replace karein
-    .replace(/-+/g, '-');           // Multiple dashes ko single karein
+    .replace(/['"]/g, '')
+    .replace(/[^a-z0-9 -]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
 };
 
-// 1. Get All News
+// 1. Get All News (Paginated & Mixed)
+// 1. Get All News (Clean Skip & Limit Pagination)
 const getAllNews = async (req, res) => {
   try {
-    const news = await News.find().sort({ createdAt: -1 });
-    res.status(200).json(news);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.max(1, parseInt(req.query.limit) || 20);
+    const skip = (page - 1) * limit;
+
+    // Direct MongoDB query sorted by newest first
+    const news = await News.find()
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const totalNews = await News.countDocuments();
+    const hasMore = skip + news.length < totalNews;
+
+    res.status(200).json({
+      news,
+      currentPage: page,
+      totalPages: Math.ceil(totalNews / limit),
+      hasMore,
+      totalNews
+    });
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch news', error: error.message });
   }
@@ -34,23 +52,20 @@ const getNewsById = async (req, res) => {
   }
 };
 
-// 3. Get Single News Item By Slug, ID, or Title Match Fallback
+// 3. Get Single News Item By Slug
 const getNewsBySlug = async (req, res) => {
   try {
     const { slug } = req.params;
 
-    // Check if query is 24-char Mongo ObjectId
     const isObjectId = /^[0-9a-fA-F]{24}$/.test(slug);
     if (isObjectId) {
       const newsItem = await News.findById(slug);
       if (newsItem) return res.status(200).json(newsItem);
     }
 
-    // Try finding by exact slug field first
     let newsItem = await News.findOne({ slug });
     if (newsItem) return res.status(200).json(newsItem);
 
-    // Fallback: Search using regex pattern matching on title for legacy/un-slugged records
     const titleRegexPattern = slug.replace(/-/g, ' ');
     newsItem = await News.findOne({ 
       title: { $regex: new RegExp(titleRegexPattern, 'i') } 
@@ -124,7 +139,8 @@ const seedRssNews = async (req, res) => {
     res.status(500).json({ message: 'Failed to seed RSS news', error: error.message });
   }
 };
-// Clear all news records
+
+// 8. Clear all news records
 const clearNews = async (req, res) => {
   try {
     await News.deleteMany({});
@@ -132,21 +148,6 @@ const clearNews = async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: 'Failed to clear news', error: error.message });
   }
-};
-// RSS item se image extract karne ka universal tareeqa
-const extractImage = (item) => {
-  // 1. Check media:content or enclosure
-  if (item.enclosure && item.enclosure.url) return item.enclosure.url;
-  if (item['media:content'] && item['media:content'].$.url) return item['media:content'].$.url;
-  
-  // 2. Check HTML content/description for an <img> tag
-  const content = item.content || item.description || '';
-  const imgMatch = content.match(/<img[^>]+src="([^">]+)"/);
-  if (imgMatch && imgMatch[1]) {
-    return imgMatch[1];
-  }
-  
-  return ''; // Default fallback agar image na mile
 };
 
 module.exports = {
