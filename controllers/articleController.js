@@ -5,7 +5,19 @@ const Comment = require('../models/Comment');
 // @route   GET /api/articles
 const getArticles = async (req, res) => {
   try {
-    const articles = await Article.find().populate('category', 'name slug').sort({ createdAt: -1 });
+    const { tag } = req.query;
+    let query = {};
+
+    // 🌟 Agar frontend se tag query aayi hai, toh database mein tags array ke andar match karo
+    if (tag) {
+      // Case-insensitive matching ke liye regex use kar sakte hain ya exact match
+      query.tags = { $regex: new RegExp(`^${tag.trim()}$`, 'i') };
+    }
+
+    const articles = await Article.find(query)
+      .populate('category', 'name slug')
+      .sort({ createdAt: -1 });
+      
     res.json(articles);
   } catch (err) {
     res.status(500).json({ error: err.message });

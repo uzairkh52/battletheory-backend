@@ -42,6 +42,11 @@ const battleSchema = new mongoose.Schema(
       type: String, 
       required: false 
     },
+    // 🌟 Yahan summary field add kar di gayi hai
+    summary: { 
+      type: String, 
+      default: '' 
+    },
     description: { type: String, required: true },
     tacticalPhases: [
       {

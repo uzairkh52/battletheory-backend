@@ -14,11 +14,17 @@ const categorySchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
     },
+    // 🌟 Article vs Battle categories ko isolate karne ke liye
+    type: {
+      type: String,
+      enum: ['article', 'battle'],
+      default: 'article',
+      required: [true, 'Category type is required'],
+    },
   },
   { timestamps: true }
 );
 
-// 🌟 'next' ko hata diya hai taake koi function mismatch ya error na aaye
 categorySchema.pre('validate', function () {
   if (this.name && !this.slug) {
     this.slug = this.name

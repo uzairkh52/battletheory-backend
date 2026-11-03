@@ -1,9 +1,11 @@
 const Category = require('../models/Category');
 
-// Get all categories
+// Get all categories (optional query filter support: ?type=article ya ?type=battle)
 const getCategories = async (req, res, next) => {
   try {
-    const categories = await Category.find().sort({ createdAt: -1 });
+    const { type } = req.query;
+    const filter = type ? { type } : {};
+    const categories = await Category.find(filter).sort({ createdAt: -1 });
     return res.status(200).json(categories);
   } catch (err) {
     if (typeof next === 'function') return next(err);
@@ -11,13 +13,42 @@ const getCategories = async (req, res, next) => {
   }
 };
 
-// Create new category
+// 🌟 Get only Article categories
+const getArticleCategories = async (req, res, next) => {
+  try {
+    const categories = await Category.find({ type: 'article' }).sort({ createdAt: -1 });
+    return res.status(200).json(categories);
+  } catch (err) {
+    if (typeof next === 'function') return next(err);
+    return res.status(500).json({ error: err.message || 'Failed to fetch article categories' });
+  }
+};
+
+// 🌟 Get only Battle categories
+const getBattleCategories = async (req, res, next) => {
+  try {
+    const categories = await Category.find({ type: 'battle' }).sort({ createdAt: -1 });
+    return res.status(200).json(categories);
+  } catch (err) {
+    if (typeof next === 'function') return next(err);
+    return res.status(500).json({ error: err.message || 'Failed to fetch battle categories' });
+  }
+};
+
+// Create new category (supports `type`: 'article' or 'battle')
 const createCategory = async (req, res, next) => {
   try {
-    const { name, slug } = req.body;
+    const { name, slug, type } = req.body;
 
     if (!name) {
       return res.status(400).json({ error: 'Category name is required' });
+    }
+
+    // Default to 'article' agar type na mile
+    const categoryType = type || 'article';
+
+    if (!['article', 'battle'].includes(categoryType)) {
+      return res.status(400).json({ error: 'Invalid category type. Must be article or battle' });
     }
 
     const generatedSlug =
@@ -30,7 +61,7 @@ const createCategory = async (req, res, next) => {
         .replace(/\-\-+/g, '-');
 
     const existingCategory = await Category.findOne({
-      $or: [{ name }, { slug: generatedSlug }],
+      $or: [{ name, type: categoryType }, { slug: generatedSlug }],
     });
 
     if (existingCategory) {
@@ -40,6 +71,7 @@ const createCategory = async (req, res, next) => {
     const category = new Category({
       name,
       slug: generatedSlug,
+      type: categoryType, // 🌟 Save category type ('article' or 'battle')
     });
 
     await category.save();
@@ -69,6 +101,8 @@ const deleteCategory = async (req, res, next) => {
 
 module.exports = {
   getCategories,
+  getArticleCategories,
+  getBattleCategories,
   createCategory,
   deleteCategory,
 };

@@ -1,7 +1,7 @@
 const Battle = require('../models/Battle');
 
-// @desc    Get all battles
-// @route   GET /api/battles
+// @desc Get all battles
+// @route GET /api/battles
 const getBattles = async (req, res) => {
   try {
     const battles = await Battle.find().sort({ createdAt: -1 });
@@ -11,8 +11,8 @@ const getBattles = async (req, res) => {
   }
 };
 
-// @desc    Get single battle by ID or Slug
-// @route   GET /api/battles/:idOrSlug
+// @desc Get single battle by ID or Slug
+// @route GET /api/battles/:idOrSlug
 const getBattleByIdOrSlug = async (req, res) => {
   try {
     const { idOrSlug } = req.params;
@@ -34,8 +34,8 @@ const getBattleByIdOrSlug = async (req, res) => {
   }
 };
 
-// @desc    Create a new battle record
-// @route   POST /api/battles
+// @desc Create a new battle record
+// @route POST /api/battles
 const createBattle = async (req, res) => {
   try {
     const {
@@ -75,7 +75,8 @@ const createBattle = async (req, res) => {
       year: String(year),
       location: location || 'Unknown Location',
       theater: theater || 'European',
-      description: description || summary || '',
+      summary: summary || '',          // 🌟 Dedicated summary assignment fixed
+      description: description || '',  // 🌟 Dedicated description assignment fixed
       coordinates: {
         lat: Number(coordinates?.lat || coordinates?.[0] || 0),
         lng: Number(coordinates?.lng || coordinates?.[1] || 0),
@@ -91,8 +92,8 @@ const createBattle = async (req, res) => {
   }
 };
 
-// @desc    Update a battle record
-// @route   PUT /api/battles/:id
+// @desc Update a battle record
+// @route PUT /api/battles/:id
 const updateBattle = async (req, res) => {
   try {
     const {
@@ -121,7 +122,11 @@ const updateBattle = async (req, res) => {
     if (year) battle.year = String(year);
     if (location) battle.location = location;
     if (theater) battle.theater = theater;
-    if (description || summary) battle.description = description || summary;
+    
+    // 🌟 Independent fields update fixed
+    if (summary !== undefined) battle.summary = summary;
+    if (description !== undefined) battle.description = description;
+
     if (coordinates) {
       battle.coordinates = {
         lat: Number(coordinates.lat ?? coordinates[0] ?? battle.coordinates?.lat ?? 0),
@@ -140,8 +145,8 @@ const updateBattle = async (req, res) => {
   }
 };
 
-// @desc    Delete a battle record
-// @route   DELETE /api/battles/:id
+// @desc Delete a battle record
+// @route DELETE /api/battles/:id
 const deleteBattle = async (req, res) => {
   try {
     const battle = await Battle.findById(req.params.id);
@@ -158,8 +163,6 @@ const deleteBattle = async (req, res) => {
 
 // --- BATTLE COMMENT CONTROLLERS ---
 
-// @desc    Add comment/reply to battle
-// @route   POST /api/battles/:id/comments
 const addBattleComment = async (req, res) => {
   try {
     const battle = await Battle.findById(req.params.id);
@@ -186,8 +189,6 @@ const addBattleComment = async (req, res) => {
   }
 };
 
-// @desc    Toggle like on battle comment
-// @route   PUT /api/battles/comments/:commentId/like
 const toggleLikeBattleComment = async (req, res) => {
   try {
     const { commentId } = req.params;
@@ -213,8 +214,6 @@ const toggleLikeBattleComment = async (req, res) => {
   }
 };
 
-// @desc    Edit battle comment
-// @route   PUT /api/battles/comments/:commentId
 const editBattleComment = async (req, res) => {
   try {
     const { commentId } = req.params;
@@ -238,8 +237,6 @@ const editBattleComment = async (req, res) => {
   }
 };
 
-// @desc    Delete battle comment
-// @route   DELETE /api/battles/comments/:commentId
 const deleteBattleComment = async (req, res) => {
   try {
     const { commentId } = req.params;
@@ -269,7 +266,7 @@ module.exports = {
   getBattles,
   getBattleByIdOrSlug,
   createBattle,
-  updateBattle, // 🌟 Exported updateBattle
+  updateBattle,
   deleteBattle,
   addBattleComment,
   toggleLikeBattleComment,
