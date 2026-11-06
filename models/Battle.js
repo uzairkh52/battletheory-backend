@@ -31,18 +31,17 @@ const battleSchema = new mongoose.Schema(
     title: { type: String },
     slug: { type: String },
     featuredImage: { type: String },
+    videoEmbed: { type: String, default: '' }, // 🌟 Video Embed Field Added
     year: { type: String, required: true },
     location: { type: String, required: true },
     coordinates: {
       lat: { type: Number, default: 0 },
       lng: { type: Number, default: 0 },
     },
-    // Theater ko String type kar diya hai taake plain text ("Pacific", "European") easily save ho sakay
     theater: { 
       type: String, 
       required: false 
     },
-    // 🌟 Yahan summary field add kar di gayi hai
     summary: { 
       type: String, 
       default: '' 

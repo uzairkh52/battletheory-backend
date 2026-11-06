@@ -42,6 +42,7 @@ const createBattle = async (req, res) => {
       name,
       title,
       featuredImage,
+      videoEmbed, // 🌟 Destructured videoEmbed
       year,
       location,
       theater,
@@ -72,11 +73,12 @@ const createBattle = async (req, res) => {
       title: battleName,
       slug: generatedSlug,
       featuredImage: featuredImage || '',
+      videoEmbed: videoEmbed || '', // 🌟 Saved to DB
       year: String(year),
       location: location || 'Unknown Location',
       theater: theater || 'European',
-      summary: summary || '',          // 🌟 Dedicated summary assignment fixed
-      description: description || '',  // 🌟 Dedicated description assignment fixed
+      summary: summary || '',
+      description: description || '',
       coordinates: {
         lat: Number(coordinates?.lat || coordinates?.[0] || 0),
         lng: Number(coordinates?.lng || coordinates?.[1] || 0),
@@ -100,6 +102,7 @@ const updateBattle = async (req, res) => {
       name,
       title,
       featuredImage,
+      videoEmbed, // 🌟 Destructured videoEmbed
       year,
       location,
       theater,
@@ -119,11 +122,10 @@ const updateBattle = async (req, res) => {
     battle.name = battleName;
     battle.title = battleName;
     if (featuredImage !== undefined) battle.featuredImage = featuredImage;
+    if (videoEmbed !== undefined) battle.videoEmbed = videoEmbed; // 🌟 Updated in DB
     if (year) battle.year = String(year);
     if (location) battle.location = location;
     if (theater) battle.theater = theater;
-    
-    // 🌟 Independent fields update fixed
     if (summary !== undefined) battle.summary = summary;
     if (description !== undefined) battle.description = description;
 
