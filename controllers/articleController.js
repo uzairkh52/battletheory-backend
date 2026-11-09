@@ -2,19 +2,19 @@ const Article = require('../models/Article');
 const Comment = require('../models/Comment');
 
 // @desc    Get all articles
-// @route   GET /api/articles
+// @desc    Get all articles (Excluding heavy content field for lightning-fast lists)
 const getArticles = async (req, res) => {
   try {
     const { tag } = req.query;
     let query = {};
 
-    // 🌟 Agar frontend se tag query aayi hai, toh database mein tags array ke andar match karo
     if (tag) {
-      // Case-insensitive matching ke liye regex use kar sakte hain ya exact match
       query.tags = { $regex: new RegExp(`^${tag.trim()}$`, 'i') };
     }
 
+    // 🌟 '.select('-content')' yahan add kiya hai taake list API light rahe (No 43MB lag)
     const articles = await Article.find(query)
+      .select('-content') 
       .populate('category', 'name slug')
       .sort({ createdAt: -1 });
       
