@@ -42,6 +42,6 @@ app.use('/api/contact', require('./routes/contactRoutes'));
 // Start Auto News Cron Job & Initial Run
 startNewsCron();
 fetchAndSaveNews();
-
+// test
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
