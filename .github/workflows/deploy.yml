@@ -3,7 +3,7 @@ name: Deploy Backend to AWS EC2
 on:
   push:
     branches:
-      - main # Agar aapki default branch 'master' hai toh yahan 'master' likhein
+      - master # Agar aapki default branch 'master' hai toh yahan 'master' likhein
 
 jobs:
   deploy:
