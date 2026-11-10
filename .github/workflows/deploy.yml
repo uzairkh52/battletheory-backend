@@ -1,0 +1,33 @@
+name: Deploy Backend to AWS EC2
+
+on:
+  push:
+    branches:
+      - main # Agar aapki default branch 'master' hai toh yahan 'master' likhein
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # EC2 par backend directory mein jayein
+            cd ~/battletheory-backend || cd /var/www/battletheory-backend
+
+            # Latest code pull karein
+            git pull origin main
+
+            # Dependencies install karein
+            npm install --production
+
+            # PM2 app restart karein
+            pm2 restart battletheory-backend || pm2 restart all
