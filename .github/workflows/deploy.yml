@@ -3,7 +3,7 @@ name: Deploy Backend to AWS EC2
 on:
   push:
     branches:
-      - master # Agar aapki default branch 'master' hai toh yahan 'master' likhein
+      - master
 
 jobs:
   deploy:
@@ -23,8 +23,8 @@ jobs:
             # EC2 par backend directory mein jayein
             cd ~/battletheory-backend || cd /var/www/battletheory-backend
 
-            # Latest code pull karein
-            git pull origin main
+            # Latest code pull karein (master branch se)
+            git pull origin master
 
             # Dependencies install karein
             npm install --production
