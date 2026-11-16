@@ -2,7 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');
-const { startNewsCron, fetchAndSaveNews } = require('./utils/newsAggregator');
 
 dotenv.config();
 connectDB();
@@ -10,7 +9,7 @@ connectDB();
 const app = express();
 app.use(cors());
 
-// 🌟 Yahan limit increase kar di gayi hai (50mb) taake Base64 images easily save ho sakein
+// Base64 images ke liye 50mb limit
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -32,16 +31,12 @@ app.use('/api/categories', require('./routes/categoryRoutes'));
 app.use('/api/articles', require('./routes/articleRoutes'));
 app.use('/api/comments', require('./routes/commentRoutes'));
 
-// 🌟 Global Search Route
+// Global Search & Bookmarks Routes
 app.use('/api/search', require('./routes/searchRoutes'));
 app.use('/api/bookmarks', require('./routes/bookmarkRoutes'));
 
-// 🌟 Contact Route Added Here
+// Contact Route
 app.use('/api/contact', require('./routes/contactRoutes'));
 
-// Start Auto News Cron Job & Initial Run
-startNewsCron();
-fetchAndSaveNews();
-// test
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

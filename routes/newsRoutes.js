@@ -7,26 +7,22 @@ const {
   createNews,
   updateNews,
   deleteNews,
-  seedRssNews,
   clearNews,
 } = require('../controllers/newsController');
 const { protect, admin } = require('../middleware/authMiddleware');
 
-// Base routes (GET is public, POST requires Admin)
+// Public list & Admin create
 router.route('/')
   .get(getAllNews)
   .post(protect, admin, createNews);
 
-// Manual RSS seed (Protected & Admin Only)
-router.get('/seed-rss', protect, admin, seedRssNews);
+// Protected bulk clear
+router.delete('/clear', protect, admin, clearNews);
 
-// Clear Route (MUST BE BEFORE /:id aur /slug/:slug)
-router.get('/clear', clearNews);
-
-// Slug or Dynamic Fetch (MUST BE BEFORE /:id)
+// Public detail by slug
 router.get('/slug/:slug', getNewsBySlug);
 
-// ID Routes (GET is public, PUT & DELETE require Admin)
+// Single record operations
 router.route('/:id')
   .get(getNewsById)
   .put(protect, admin, updateNews)
