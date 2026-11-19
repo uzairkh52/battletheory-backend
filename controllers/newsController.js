@@ -14,9 +14,19 @@ const generateSlug = (text) => {
     .replace(/^-+|-+$/g, '');
 };
 
+const normalizeTags = (tags) => {
+  if (Array.isArray(tags)) {
+    return [...new Set(tags.map((t) => String(t).trim()).filter(Boolean))];
+  }
+  if (typeof tags === 'string') {
+    return [...new Set(tags.split(',').map((t) => t.trim()).filter(Boolean))];
+  }
+  return [];
+};
+
 const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
 
-// 1. Get All Published News (Paginated + Category Filter)
+// 1. Get All Published News (Paginated + Category & Search Filter)
 const getAllNews = async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1);
@@ -26,6 +36,11 @@ const getAllNews = async (req, res) => {
     const filter = req.query.all === 'true' ? {} : { isPublished: true };
     if (req.query.category && req.query.category !== 'all') {
       filter.category = req.query.category;
+    }
+    if (req.query.search && req.query.search.trim()) {
+      const escaped = req.query.search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escaped, 'i');
+      filter.$or = [{ title: regex }, { summary: regex }, { tags: regex }];
     }
 
     const [news, totalNews] = await Promise.all([
@@ -90,14 +105,21 @@ const createNews = async (req, res) => {
   try {
     const {
       title,
+      slug: customSlug,
       summary,
       content,
       tacticalAnalysis,
       category,
+      tags,
       image,
       imageUrl,
       thumbnail,
+      imageAlt,
       author,
+      source,
+      sourceUrl,
+      isFeatured,
+      isBreaking,
       isPublished,
     } = req.body;
 
@@ -105,9 +127,9 @@ const createNews = async (req, res) => {
       return res.status(400).json({ message: 'Title, summary, and content are required' });
     }
 
-    const slug = generateSlug(title);
+    const slug = generateSlug(customSlug || title);
     if (!slug) {
-      return res.status(400).json({ message: 'Invalid title for slug generation' });
+      return res.status(400).json({ message: 'Invalid title or slug for generation' });
     }
 
     const existing = await News.findOne({ slug });
@@ -118,6 +140,8 @@ const createNews = async (req, res) => {
       });
     }
 
+    const publishedFlag = isPublished !== undefined ? Boolean(isPublished) : true;
+
     const newsItem = await News.create({
       title,
       slug,
@@ -125,9 +149,16 @@ const createNews = async (req, res) => {
       content,
       tacticalAnalysis: tacticalAnalysis || '',
       category: category || 'Defense',
+      tags: normalizeTags(tags),
       image: image || imageUrl || thumbnail || '',
+      imageAlt: imageAlt || title,
       author: author || 'BattleTheory Editorial',
-      isPublished: isPublished !== undefined ? Boolean(isPublished) : true,
+      source: source || 'BattleTheory Original',
+      sourceUrl: sourceUrl || '',
+      isFeatured: Boolean(isFeatured),
+      isBreaking: Boolean(isBreaking),
+      isPublished: publishedFlag,
+      publishedAt: publishedFlag ? new Date() : null,
     });
 
     res.status(201).json(newsItem);
@@ -151,15 +182,35 @@ const updateNews = async (req, res) => {
     const payload = { ...req.body };
     delete payload._id;
     delete payload.__v;
-    delete payload.source;
-    delete payload.sourceUrl;
     delete payload.link;
 
     if (payload.imageUrl && !payload.image) {
       payload.image = payload.imageUrl;
+      delete payload.imageUrl;
     }
 
-    if (payload.title && payload.title !== newsItem.title) {
+    if (payload.tags !== undefined) {
+      payload.tags = normalizeTags(payload.tags);
+    }
+
+    if (payload.isPublished === true && !newsItem.publishedAt) {
+      payload.publishedAt = new Date();
+    }
+
+    if (payload.slug) {
+      const normalizedSlug = generateSlug(payload.slug);
+      if (!normalizedSlug) {
+        return res.status(400).json({ message: 'Invalid custom slug' });
+      }
+      const duplicateSlug = await News.findOne({
+        slug: normalizedSlug,
+        _id: { $ne: newsItem._id },
+      });
+      if (duplicateSlug) {
+        return res.status(409).json({ message: 'Another news article already uses this slug' });
+      }
+      payload.slug = normalizedSlug;
+    } else if (payload.title && payload.title !== newsItem.title) {
       const newSlug = generateSlug(payload.title);
       if (!newSlug) {
         return res.status(400).json({ message: 'Invalid title for slug generation' });

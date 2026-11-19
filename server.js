@@ -26,6 +26,7 @@ app.use('/api/battles', require('./routes/battleRoutes'));
 
 // News Routes
 app.use('/api/news', require('./routes/newsRoutes'));
+app.use('/api/news-categories', require('./routes/newsCategoryRoutes'));
 
 app.use('/api/categories', require('./routes/categoryRoutes'));
 app.use('/api/articles', require('./routes/articleRoutes'));
